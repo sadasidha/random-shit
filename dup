@@ -1,0 +1,42 @@
+#!bash
+# this is written for MAC
+# Purpose is to execute `docker-compose up -d ` command.
+# if we want to skip any particular service(s) we can add  [ -s service-name1..n ] 
+
+docker info >/dev/null 2>&1 || {
+  (open -a 'Docker' &) >/dev/null 2>&1
+  # delay is added to allow few seconds for docker application to wakeup. 
+  sleep 10
+}
+
+# if no parameters are passed then all the services in docker compose will be up.
+if [ "$#" -eq 0 ]; then
+  docker-compose up -d
+  exit 0
+fi
+
+# list to check which service(s) to be skipped.
+skips=()
+function skip_list() {
+  found_skip=0
+  for f in "$@"; do
+    test $found_skip -eq 0 && test "$f" == "-s" && {
+      found_skip=1
+    }
+    test $found_skip -eq 1 && {
+      skips+=($f)
+    }
+  done
+}
+
+skip_list "$@"
+
+[ ${#skips[@]} -eq 0 ]  && {
+  docker-compose up -d "$@"
+  exit 0
+}
+
+
+SERVICES=($(docker-compose config --services))
+THE_DIFF=($(comm -23 <(echo "${SERVICES[@]}" | sed -e 's/ /\n/g' | sort) <(echo "${skips[@]}" | sed -e 's/ /\n/g' | sort)))
+docker-compose up -d "${THE_DIFF[@]}"
